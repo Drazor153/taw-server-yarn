@@ -1,11 +1,14 @@
-const mysql = require('mysql');
+const mysql = require("mysql");
+
+const user = "desktop_pc";
+const password = "chinoxlink153";
 
 const connection = mysql.createConnection({
-    host: 'localhost',
-    user: 'root',
-    port: 3306,
-    password: 'qwe123',
-    database: 'dbtaw'
+  host: "10.242.102.244",
+  port: 3306,
+  user,
+  password,
+  database: "dbtaw",
 });
 // const connection = mysql.createConnection({
 //     host: '186.64.118.40',
@@ -15,12 +18,12 @@ const connection = mysql.createConnection({
 //     database: 'tnsinfor_fjusto2'
 // });
 
-connection.connect(error => {
-    if (error) {
-        console.error(error);
-    } else {
-        console.log('connection successful');
-    }
+connection.connect((error) => {
+  if (error) {
+    console.error(error);
+  } else {
+    console.log("connection successful");
+  }
 });
 
 module.exports = connection;

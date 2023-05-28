@@ -4,10 +4,22 @@ const crypto = require("crypto");
 const cors = require("cors");
 const os = require("os");
 const db = require("./db");
+const { error } = require("console");
 const app = express();
 const PORT = 3600;
 
-const mostrar = (str) => console.log("Peticion recibida >> " + str);
+const exQuery = (query) => {
+  return new Promise((resolve, reject) => {
+    db.query(query, (err, rows) => {
+      if (err) {
+        reject(err);
+      } else {
+        console.log('b')
+        resolve(rows);
+      }
+    });
+  });
+};
 
 const algorithm = "aes-256-cbc";
 
@@ -47,35 +59,10 @@ var job = new cronJob(
 
 job.start();
 
-app.use(
-  cors({
-    // origin: [
-    //   "http://192.168.1.147:5173",
-    //   "http://localhost:3000",
-    //   "http://10.242.186.236:5173",
-    // ],
-    // credentials: true,
-  })
-);
+app.use(cors());
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
-
-// const oneDay = 1000 * 60 * 60 * 24;
-// app.use(
-//   sessions({
-//     secret: "SecretksdpAlsmdxpjksdZKeySKNXkznskjd",
-//     resave: false,
-//     saveUninitialized: true,
-//     cookie: {
-//       maxAge: oneDay,
-//       sameSite: "none",
-//       secure: true,
-//       domain: "localhost:3600",
-//     },
-//   })
-// );
-// app.use(cookieParser());
 
 // METODOS GET
 // Ruta de prueba
@@ -108,7 +95,6 @@ app.get("/carrera", (req, res) => {
           let planes_temp = results.map((row) => {
             return JSON.parse(JSON.stringify(row));
           });
-          // console.log(planes_temp)
           planes.push({
             codigo: obj.codigo,
             planes: planes_temp,
@@ -166,30 +152,29 @@ app.get("/ubicaciones", (req, res) => {
     });
   });
 });
-// Ingresar bloques de horario, no usar
-// app.get("/bloque", (req, res) => {
-//   let sql = "INSERT INTO bloque(dia, n_bloque) VALUES ?";
-//   let dia = ["lu", "ma", "mi", "ju", "vi"];
-//   let bloques = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
 
-//   let datos = [];
-//   dia.forEach((d) => {
-//     bloques.forEach((b) => {
-//       datos.push([d, b]);
-//     });
-//   });
+app.get("/sala", async (req, res) => {
+  try {
+    const params = req.query;
+    const results = {};
+    const query1 = `SELECT s.nombre sala, d.nombre departamento, d.sede FROM sala s JOIN departamento d 
+    ON (s.idDep = d.idDep AND s.idDep = ${params.depa} AND s.idSala = ${params.sala})`;
+    
+    const query2 = "SELECT MAX(n_bloque) num FROM bloque";
+    
+    const res1 = await exQuery(query1);
+    results.res1 = res1;
+    const res2 = await exQuery(query2);
+    results.res2 = res2;
 
-//   db.query(sql, [datos], (error, results, fields) => {
-//     if (error) throw error;
-//   });
-//   console.log(datos);
-// });
-
+    res.json(results);
+  } catch (error) {
+    console.error("Error al ejecutar las consultas", error);
+    res.status(500).json({ error: "Error al ejecutar ls consultas" });
+  }
+});
 // METODOS POST
 app.post("/login", (req, res) => {
-  // mostrar("usuario necesitando acceso: " + req.body.rut);
-  // const ip = req.headers.origin;
-  // mostrar(ip ? ip: 'ip desconocida');
   let rut = parseInt(req.body.rut);
   let pass = crypto
     .createHash("sha256")
@@ -225,6 +210,7 @@ app.post("/login", (req, res) => {
 //   console.log("Servidor iniciado en http://localhost:" + PORT);
 //   console.log(`Direcccion para comunicación en LAN: http://${address}:${PORT}`);
 // });
+
 const address_zero =
   os.networkInterfaces()["ZeroTier One [8286ac0e47e743dd]"][1].address;
 app.listen(PORT, address_zero, () => {
