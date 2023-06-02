@@ -14,7 +14,6 @@ const exQuery = (query) => {
       if (err) {
         reject(err);
       } else {
-        console.log('b')
         resolve(rows);
       }
     });
@@ -156,23 +155,34 @@ app.get("/ubicaciones", (req, res) => {
 app.get("/sala", async (req, res) => {
   try {
     const params = req.query;
-    const results = {};
-    const query1 = `SELECT s.nombre sala, d.nombre departamento, d.sede FROM sala s JOIN departamento d 
-    ON (s.idDep = d.idDep AND s.idDep = ${params.depa} AND s.idSala = ${params.sala})`;
-    
-    const query2 = "SELECT MAX(n_bloque) num FROM bloque";
-    
-    const res1 = await exQuery(query1);
-    results.res1 = res1;
-    const res2 = await exQuery(query2);
-    results.res2 = res2;
+    // Consulta para saber el numero de bloques por dia, suponiendo que todos los dias tienen la misma cantidad de bloques
+    const query_max = "SELECT MAX(n_bloque) num FROM bloque";
+    const bpd = (await exQuery(query_max))[0].num;
 
+    // Consulta para obtener horario de la Sala
+    const queryAsign = `select a.ramo cod_ramo, a.grupo, bl.num_dia, bl.n_bloque, d.nombre docente, r.nombre ramo from asignacion a join bloque bl on (a.sala = ${params.sala} and a.bloque = bl.idBloque)
+    join docente d on(d.rut = a.docente_rut) join ramo r on (a.ramo = r.codigo) order by bl.num_dia, bl.n_bloque`;
+    const res1 = await exQuery(queryAsign);
+
+    // Crear lista de asignaciones
+    const asignaciones = Array.from(Array(bpd), (_) =>
+      Array(5).fill({ valido: false })
+    );
+    res1.forEach((e) => {
+      const obj = JSON.parse(JSON.stringify(e));
+      asignaciones[obj.n_bloque - 1][obj.num_dia - 1] = {
+        valido: true,
+        ...obj,
+      };
+    });
+    const results = { bpd, asignaciones };
     res.json(results);
   } catch (error) {
     console.error("Error al ejecutar las consultas", error);
     res.status(500).json({ error: "Error al ejecutar ls consultas" });
   }
 });
+
 // METODOS POST
 app.post("/login", (req, res) => {
   let rut = parseInt(req.body.rut);
@@ -202,19 +212,19 @@ app.post("/login", (req, res) => {
   );
 });
 
-// app.listen(PORT, (error) => {
-//   const address = os.networkInterfaces()["Wi-Fi"][1].address;
-//   if (error) {
-//     console.log(error);
-//   }
-//   console.log("Servidor iniciado en http://localhost:" + PORT);
-//   console.log(`Direcccion para comunicación en LAN: http://${address}:${PORT}`);
-// });
-
-const address_zero =
-  os.networkInterfaces()["ZeroTier One [8286ac0e47e743dd]"][1].address;
-app.listen(PORT, address_zero, () => {
-  console.log(
-    `Direcccion para comunicación en ZERO: http://${address_zero}:${PORT}`
-  );
+app.listen(PORT, (error) => {
+  const address = os.networkInterfaces()["Wi-Fi"][1].address;
+  if (error) {
+    console.log(error);
+  }
+  console.log("Servidor iniciado en http://localhost:" + PORT);
+  console.log(`Direcccion para comunicación en LAN: http://${address}:${PORT}`);
 });
+
+// const address_zero =
+//   os.networkInterfaces()["ZeroTier One [8286ac0e47e743dd]"][1].address;
+// app.listen(PORT, address_zero, () => {
+//   console.log(
+//     `Direcccion para comunicación en ZERO: http://${address_zero}:${PORT}`
+//   );
+// });
