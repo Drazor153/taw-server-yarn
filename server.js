@@ -123,9 +123,10 @@ app.get("/malla", (req, res) => {
     res.json({ error: "Hubo un error al obtener los datos" });
     return 0;
   }
-  const sql = `select m.codigo, nombre, num_semestre numSemestre, max_bloques maxBloques, posicion pos 
+  const sql = `select m.codigo, nombre, num_semestre numSemestre, max_bloques maxBloques, posicion pos, na.conteo 
   from malla m join ramo r 
-  on (m.codigo = r.codigo and idCarrera = ${params.carrera} and año = ${params.plan})`;
+  on (m.codigo = r.codigo and idCarrera = ${params.carrera} and año = ${params.plan})
+  join num_asignaciones na on(m.codigo = na.codigo)`;
   db.query(sql, (error, results) => {
     if (error) throw error;
     if (results.length > 0) {
@@ -166,7 +167,7 @@ app.get("/sala", async (req, res) => {
 
     // Crear lista de asignaciones
     const asignaciones = Array.from(Array(bpd), (_) =>
-      Array(5).fill({ valido: false })
+      Array(5).fill(null)
     );
     res1.forEach((e) => {
       const obj = JSON.parse(JSON.stringify(e));
