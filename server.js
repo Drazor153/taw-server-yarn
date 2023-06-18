@@ -210,19 +210,19 @@ app.post("/login", (req, res) => {
   );
 });
 
-// app.listen(PORT, (error) => {
-//   const address = os.networkInterfaces()["Wi-Fi"][1].address;
-//   if (error) {
-//     console.log(error);
-//   }
-//   console.log("Servidor iniciado en http://localhost:" + PORT);
-//   console.log(`Direcccion para comunicación en LAN: http://${address}:${PORT}`);
-// });
-
-const address_zero =
-  os.networkInterfaces()["ZeroTier One [8286ac0e47e743dd]"][1].address;
-app.listen(PORT, address_zero, () => {
-  console.log(
-    `Direcccion para comunicación en ZERO: http://${address_zero}:${PORT}`
-  );
+app.listen(PORT, (error) => {
+  const address = os.networkInterfaces()["Wi-Fi"][1].address;
+  if (error) {
+    console.log(error);
+  }
+  console.log("Servidor iniciado en http://localhost:" + PORT);
+  console.log(`Direcccion para comunicación en LAN: http://${address}:${PORT}`);
 });
+
+// const address_zero =
+//   os.networkInterfaces()["ZeroTier One [8286ac0e47e743dd]"][1].address;
+// app.listen(PORT, address_zero, () => {
+//   console.log(
+//     `Direcccion para comunicación en ZERO: http://${address_zero}:${PORT}`
+//   );
+// });
