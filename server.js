@@ -41,19 +41,19 @@ function decrypt(text) {
 
   return decrypted.toString();
 }
-const connectedSessions = [];
+// const connectedSessions = [];
 
-var cronJob = require("cron").CronJob;
-var job = new cronJob(
-  "5 * * * * *",
-  () => {
-    console.log(connectedSessions);
-  },
-  null,
-  true
-);
+// var cronJob = require("cron").CronJob;
+// var job = new cronJob(
+//   "5 * * * * *",
+//   () => {
+//     console.log(connectedSessions);
+//   },
+//   null,
+//   true
+// );
 
-job.start();
+// job.start();
 
 app.use(cors());
 
