@@ -1,13 +1,15 @@
-const express = require("express");
-const bodyParser = require("body-parser");
-const crypto = require("crypto");
-const cors = require("cors");
-const os = require("os");
-const db = require("./db");
+const express = require('express');
+const bodyParser = require('body-parser');
+const crypto = require('crypto');
+const cors = require('cors');
+const os = require('os');
+const db = require('./db');
 const app = express();
+const api = express.Router();
+app.use('/api', api);
 const PORT = 3600;
 
-const exQuery = (query) => {
+const exQuery = query => {
   return new Promise((resolve, reject) => {
     db.query(query, (err, rows) => {
       if (err) {
@@ -19,7 +21,7 @@ const exQuery = (query) => {
   });
 };
 
-const algorithm = "aes-256-cbc";
+const algorithm = 'aes-256-cbc';
 const key = crypto.randomBytes(32);
 const iv = crypto.randomBytes(16);
 
@@ -27,12 +29,12 @@ function encrypt(text) {
   let cipher = crypto.createCipheriv(algorithm, Buffer.from(key), iv);
   let encrypted = cipher.update(text);
   encrypted = Buffer.concat([encrypted, cipher.final()]);
-  return { iv: iv.toString("hex"), encryptedData: encrypted.toString("hex") };
+  return { iv: iv.toString('hex'), encryptedData: encrypted.toString('hex') };
 }
 
 function decrypt(text) {
-  let iv = Buffer.from(text.iv, "hex");
-  let encryptedText = Buffer.from(text.encryptedData, "hex");
+  let iv = Buffer.from(text.iv, 'hex');
+  let encryptedText = Buffer.from(text.encryptedData, 'hex');
 
   let decipher = crypto.createDecipheriv(algorithm, Buffer.from(key), iv);
 
@@ -55,31 +57,31 @@ function decrypt(text) {
 
 // job.start();
 
-app.use(cors());
+api.use(cors());
 
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: false }));
+api.use(bodyParser.json());
+api.use(bodyParser.urlencoded({ extended: false }));
 
 // METODOS GET
 // Ruta de prueba
-app.get("/api/prueba", (req, res) => {
-  res.send("<h1>Hello World!! </h1>");
+api.get('/prueba', (req, res) => {
+  res.send('<h1>Hello World!! </h1>');
 });
 // Obtener las carreras administradas ya sea por un Jefe de Carrera (jc) o un Director de Area (da)
-app.get("/api/carrera", (req, res) => {
+api.get('/carrera', (req, res) => {
   const params = req.query;
   // console.log(params)
   // if (connectedSessions.indexOf(params.key) === -1) {
   //   res.send({ logout: 1 });
   //   return;
   // }
-  const col = params.cargo_adm === "jc" ? "jc_rut" : "da_rut";
+  const col = params.cargo_adm === 'jc' ? 'jc_rut' : 'da_rut';
   const sql = `select codigo, nombre from carrera where ${col} = ${params.rut}`;
   db.query(sql, async (error, results) => {
     if (error) throw error;
     if (results.length > 0) {
       const planes = [];
-      const listaCarreras = results.map(async (obj) => {
+      const listaCarreras = results.map(async obj => {
         const query = `select año anio from plan_estudio where idCarrera = ${obj.codigo}`;
         const results = await new Promise((resolve, reject) => {
           db.query(query, (error, results) => {
@@ -88,7 +90,7 @@ app.get("/api/carrera", (req, res) => {
           });
         });
         if (results.length > 0) {
-          let planes_temp = results.map((row) => {
+          let planes_temp = results.map(row => {
             return JSON.parse(JSON.stringify(row));
           });
           planes.push({
@@ -114,10 +116,10 @@ app.get("/api/carrera", (req, res) => {
   });
 });
 
-app.get("/api/malla", (req, res) => {
+api.get('/malla', (req, res) => {
   const params = req.query;
   if (!params.carrera || !params.plan) {
-    res.json({ error: "Hubo un error al obtener los datos" });
+    res.json({ error: 'Hubo un error al obtener los datos' });
     return 0;
   }
   const sql = `select m.codigo, nombre, num_semestre numSemestre, max_bloques maxBloques, posicion pos, na.conteo 
@@ -133,9 +135,9 @@ app.get("/api/malla", (req, res) => {
   });
 });
 
-app.get("/api/ubicaciones", (req, res) => {
-  const query1 = "select * from departamento";
-  const query2 = "select * from sala";
+api.get('/ubicaciones', (req, res) => {
+  const query1 = 'select * from departamento';
+  const query2 = 'select * from sala';
   const resultado = {};
 
   db.query(query1, (error, results1) => {
@@ -150,11 +152,11 @@ app.get("/api/ubicaciones", (req, res) => {
   });
 });
 
-app.get("/api/sala", async (req, res) => {
+api.get('/sala', async (req, res) => {
   try {
     const params = req.query;
     // Consulta para saber el numero de bloques por dia, suponiendo que todos los dias tienen la misma cantidad de bloques
-    const query_max = "SELECT MAX(n_bloque) num FROM bloque";
+    const query_max = 'SELECT MAX(n_bloque) num FROM bloque';
     const bpd = (await exQuery(query_max))[0].num;
 
     // Consulta para obtener horario de la Sala
@@ -163,10 +165,8 @@ app.get("/api/sala", async (req, res) => {
     const res1 = await exQuery(queryAsign);
 
     // Crear lista de asignaciones
-    const asignaciones = Array.from(Array(bpd), (_) =>
-      Array(5).fill(null)
-    );
-    res1.forEach((e) => {
+    const asignaciones = Array.from(Array(bpd), _ => Array(5).fill(null));
+    res1.forEach(e => {
       const obj = JSON.parse(JSON.stringify(e));
       asignaciones[obj.n_bloque - 1][obj.num_dia - 1] = {
         valido: true,
@@ -176,30 +176,29 @@ app.get("/api/sala", async (req, res) => {
     const results = { bpd, asignaciones };
     res.json(results);
   } catch (error) {
-    console.error("Error al ejecutar las consultas", error);
-    res.status(500).json({ error: "Error al ejecutar ls consultas" });
+    console.error('Error al ejecutar las consultas', error);
+    res.status(500).json({ error: 'Error al ejecutar ls consultas' });
   }
 });
-app.get('/api/getprofesores', async (req, res) => {
+api.get('/getprofesores', async (req, res) => {
   try {
     const ramoEscogido = req.query.ramoEscogido;
     const query = `select d.rut, d.nombre from docente d join imparte i on (d.rut = i.rut and i.ramo = '${ramoEscogido}')`;
     const data = await exQuery(query);
     res.send(data);
-    
   } catch (error) {
-    console.error("Error al ejecutar las consultas", error);
-    res.status(500).json({ error: "Error al ejecutar ls consultas" });
+    console.error('Error al ejecutar las consultas', error);
+    res.status(500).json({ error: 'Error al ejecutar ls consultas' });
   }
-})
+});
 
 // METODOS POST
-app.post("/api/login", (req, res) => {
+api.post('/login', (req, res) => {
   let rut = parseInt(req.body.rut);
   let pass = crypto
-    .createHash("sha256")
+    .createHash('sha256')
     .update(req.body.password)
-    .digest("hex");
+    .digest('hex');
   db.query(
     `select rut, nombre, correo, cargo_adm from docente 
     where rut = ${rut} and password = '${pass}'`,
@@ -222,12 +221,12 @@ app.post("/api/login", (req, res) => {
   );
 });
 
-app.listen(PORT, (error) => {
-  const address = os.networkInterfaces()["Wi-Fi"][1].address;
+app.listen(PORT, error => {
+  const address = os.networkInterfaces()['Wi-Fi'][1].address;
   if (error) {
     console.log(error);
   }
-  console.log("Servidor iniciado en http://localhost:" + PORT);
+  console.log('Servidor iniciado en http://localhost:' + PORT);
   console.log(`Direcccion para comunicación en LAN: http://${address}:${PORT}`);
 });
 
