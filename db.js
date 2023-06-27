@@ -1,10 +1,10 @@
 const mysql = require("mysql");
 
-const user = "desktop_pc";
+const user = "tawaccess";
 // const user = 'root';
-const password = "chinoxlink153";
+const password = "chinox2341";
 // const password = 'qwe123';
-const host = "10.242.102.244";
+const host = "10.242.231.64";
 // const host = 'localhost';
 
 const connection = mysql.createConnection({

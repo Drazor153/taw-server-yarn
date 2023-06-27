@@ -62,17 +62,17 @@ app.use(bodyParser.urlencoded({ extended: false }));
 
 // METODOS GET
 // Ruta de prueba
-app.get("/prueba", (req, res) => {
+app.get("/api/prueba", (req, res) => {
   res.send("<h1>Hello World!! </h1>");
 });
 // Obtener las carreras administradas ya sea por un Jefe de Carrera (jc) o un Director de Area (da)
-app.get("/carrera", (req, res) => {
+app.get("/api/carrera", (req, res) => {
   const params = req.query;
   // console.log(params)
-  if (connectedSessions.indexOf(params.key) === -1) {
-    res.send({ logout: 1 });
-    return;
-  }
+  // if (connectedSessions.indexOf(params.key) === -1) {
+  //   res.send({ logout: 1 });
+  //   return;
+  // }
   const col = params.cargo_adm === "jc" ? "jc_rut" : "da_rut";
   const sql = `select codigo, nombre from carrera where ${col} = ${params.rut}`;
   db.query(sql, async (error, results) => {
@@ -114,7 +114,7 @@ app.get("/carrera", (req, res) => {
   });
 });
 
-app.get("/malla", (req, res) => {
+app.get("/api/malla", (req, res) => {
   const params = req.query;
   if (!params.carrera || !params.plan) {
     res.json({ error: "Hubo un error al obtener los datos" });
@@ -133,7 +133,7 @@ app.get("/malla", (req, res) => {
   });
 });
 
-app.get("/ubicaciones", (req, res) => {
+app.get("/api/ubicaciones", (req, res) => {
   const query1 = "select * from departamento";
   const query2 = "select * from sala";
   const resultado = {};
@@ -150,7 +150,7 @@ app.get("/ubicaciones", (req, res) => {
   });
 });
 
-app.get("/sala", async (req, res) => {
+app.get("/api/sala", async (req, res) => {
   try {
     const params = req.query;
     // Consulta para saber el numero de bloques por dia, suponiendo que todos los dias tienen la misma cantidad de bloques
@@ -180,9 +180,21 @@ app.get("/sala", async (req, res) => {
     res.status(500).json({ error: "Error al ejecutar ls consultas" });
   }
 });
+app.get('/api/getprofesores', async (req, res) => {
+  try {
+    const ramoEscogido = req.query.ramoEscogido;
+    const query = `select d.rut, d.nombre from docente d join imparte i on (d.rut = i.rut and i.ramo = '${ramoEscogido}')`;
+    const data = await exQuery(query);
+    res.send(data);
+    
+  } catch (error) {
+    console.error("Error al ejecutar las consultas", error);
+    res.status(500).json({ error: "Error al ejecutar ls consultas" });
+  }
+})
 
 // METODOS POST
-app.post("/login", (req, res) => {
+app.post("/api/login", (req, res) => {
   let rut = parseInt(req.body.rut);
   let pass = crypto
     .createHash("sha256")
@@ -201,7 +213,7 @@ app.post("/login", (req, res) => {
           data,
           key,
         });
-        connectedSessions.push(key);
+        // connectedSessions.push(key);
         // ip ? connectedDevices.push(ip) : "";
       } else {
         res.send({ logeo: 0 });
