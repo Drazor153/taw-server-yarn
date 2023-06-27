@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const cors = require('cors');
 const os = require('os');
 const db = require('./db');
+const { log } = require('console');
 const app = express();
 const api = express.Router();
 app.use('/api', api);
@@ -220,7 +221,34 @@ api.post('/login', (req, res) => {
     }
   );
 });
+api.post('/asignacion', async (req, res) => {
+  const data = req.body;
+  // Obtener ID del bloque dependiendo del dia y bloque
+  const lista_bloques = data.bloques.map(
+    bloque => `(${bloque.dia}, ${bloque.bloque})`
+  );
+  const sql1 = `select idBloque from bloque where (num_dia, n_bloque) in (${lista_bloques.join(
+    ','
+  )})`;
+  const lista_idBloques = (await exQuery(sql1)).map(bloque => bloque.idBloque);
 
+  // Construir lista de asignaciones
+  const grupo = 'B'; //Grupo de Ejemplo
+  const query_asignaciones = lista_idBloques.map(bloque => [
+    data.codigoRamo,
+    data.salaRef.sala,
+    bloque,
+    data.profesor,
+    grupo,
+  ]);
+  const sql2 =
+    'insert into asignacion(ramo, sala, bloque, docente_rut, grupo) values ?';
+  db.query(sql2, [query_asignaciones], (err, result) => {
+    if (err) throw err;
+    console.log('Number of records inserted: ' + result.affectedRows);
+    res.json({res: 'ASIGNACIÓN REALIZADA CON EXITO'})
+  });
+});
 app.listen(PORT, error => {
   const address = os.networkInterfaces()['Wi-Fi'][1].address;
   if (error) {
