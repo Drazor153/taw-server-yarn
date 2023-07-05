@@ -193,6 +193,72 @@ api.get('/getprofesores', async (req, res) => {
   }
 });
 
+api.get('/all-profesores', async (req, res) => {
+  try {
+    const query = 'SELECT rut, nombre FROM docente';
+    const response = await exQuery(query);
+    res.json({ arrayDocentes: response });
+  } catch (error) {
+    console.log('Error in /all-profesores API URL', error);
+    res.status(500).json({ error: 'Error al ejecutar ls consultas' });
+  }
+});
+api.get('/horario-docente', async (req, res) => {
+  try {
+    const params = req.query;
+    // Consulta para saber el numero de bloques por dia, suponiendo que todos los dias tienen la misma cantidad de bloques
+    const query_max = 'SELECT MAX(n_bloque) num FROM bloque';
+    const bpd = (await exQuery(query_max))[0].num;
+
+    // Consulta para obtener horario de la Sala
+    const queryAsign = `select a.ramo cod_ramo, bl.num_dia, bl.n_bloque, r.nombre ramo, a.grupo, s.nombre sala from asignacion a join sala s on (a.docente_rut = ${params.rutDocente} and a.sala = s.idSala) join bloque bl on(bl.idBloque = a.bloque) join ramo r on(a.ramo = r.codigo)`;
+    const res1 = await exQuery(queryAsign);
+
+    // Crear lista de asignaciones
+    const asignaciones = Array.from(Array(bpd), _ => Array(5).fill(null));
+    res1.forEach(e => {
+      const obj = JSON.parse(JSON.stringify(e));
+      asignaciones[obj.n_bloque - 1][obj.num_dia - 1] = {
+        valido: true,
+        ...obj,
+      };
+    });
+    const results = { bpd, asignaciones };
+    res.json(results);
+  } catch (error) {
+    console.error('Error /horario-docente API URL', error);
+    res.status(500).json({ error: 'Error al ejecutar ls consultas' });
+  }
+});
+
+api.get('/disponibilidad-docente', async (req, res) => {
+  try {
+    const params = req.query;
+    // Consulta para saber el numero de bloques por dia, suponiendo que todos los dias tienen la misma cantidad de bloques
+    const query_max = 'SELECT MAX(n_bloque) num FROM bloque';
+    const bpd = (await exQuery(query_max))[0].num;
+
+    // Consulta para obtener horario de la Sala
+    const queryAsign = `SELECT d.usado, bl.n_bloque, bl.num_dia FROM disponible d JOIN bloque bl ON (d.docente_rut = ${params.rutDocente} and d.idBloque = bl.idBloque)`;
+    const res1 = await exQuery(queryAsign);
+
+    // Crear lista de asignaciones
+    const asignaciones = Array.from(Array(bpd), _ => Array(5).fill(null));
+    res1.forEach(e => {
+      const obj = JSON.parse(JSON.stringify(e));
+      asignaciones[obj.n_bloque - 1][obj.num_dia - 1] = {
+        valido: true,
+        ...obj,
+      };
+    });
+    const results = { bpd, asignaciones };
+    res.json(results);
+  } catch (error) {
+    console.error('Error /disponibilidad-docente API URL', error);
+    res.status(500).json({ error: 'Error al ejecutar ls consultas' });
+  }
+});
+
 // METODOS POST
 api.post('/login', (req, res) => {
   let rut = parseInt(req.body.rut);
@@ -245,8 +311,10 @@ api.post('/asignacion', async (req, res) => {
     'insert into asignacion(ramo, sala, bloque, docente_rut, grupo) values ?';
   db.query(sql2, [query_asignaciones], (err, result) => {
     if (err) throw err;
-    console.log('Number of records inserted: ' + result.affectedRows);
-    res.json({res: 'ASIGNACIÓN REALIZADA CON EXITO'})
+    console.log(
+      `Number of records inserted for ${data.codigoRamo} subject: ${result.affectedRows}`
+    );
+    res.json({ res: 'ASIGNACIÓN REALIZADA CON EXITO' });
   });
 });
 app.listen(PORT, error => {
