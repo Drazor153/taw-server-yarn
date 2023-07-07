@@ -4,7 +4,6 @@ const crypto = require('crypto');
 const cors = require('cors');
 const os = require('os');
 const db = require('./db');
-const { log } = require('console');
 const app = express();
 const api = express.Router();
 app.use('/api', api);
@@ -13,6 +12,17 @@ const PORT = 3600;
 const exQuery = query => {
   return new Promise((resolve, reject) => {
     db.query(query, (err, rows) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(rows);
+      }
+    });
+  });
+};
+const ADDQuery = (query, datos) => {
+  return new Promise((resolve, reject) => {
+    db.query(query, datos, (err, rows) => {
       if (err) {
         reject(err);
       } else {
@@ -76,7 +86,7 @@ api.get('/carrera', (req, res) => {
   //   res.send({ logout: 1 });
   //   return;
   // }
-  const col = params.cargo_adm === 'jc' ? 'jc_rut' : 'da_rut';
+  const col = params.cargo_adm === 'JC' ? 'jc_rut' : 'da_rut';
   const sql = `select codigo, nombre from carrera where ${col} = ${params.rut}`;
   db.query(sql, async (error, results) => {
     if (error) throw error;
@@ -116,6 +126,13 @@ api.get('/carrera', (req, res) => {
     }
   });
 });
+
+api.get('/asignaciones-ramo', async(req, res) => {
+  const params = req.query; 
+
+  const res1 = await exQuery(`SELECT na.conteo, r.max_bloques FROM num_asignaciones na JOIN ramo r ON (na.codigo = r.codigo and na.codigo = '${params.codRamo}')`);
+  res.send(res1[0]);
+})
 
 api.get('/malla', (req, res) => {
   const params = req.query;
@@ -231,6 +248,15 @@ api.get('/horario-docente', async (req, res) => {
   }
 });
 
+const deleteNulls = object => {
+  return Object.keys(object).reduce((acumulator, key) => {
+    if (object[key] != null) {
+      acumulator[key] = object[key];
+    }
+    return acumulator;
+  }, {});
+};
+
 api.get('/disponibilidad-docente', async (req, res) => {
   try {
     const params = req.query;
@@ -238,20 +264,23 @@ api.get('/disponibilidad-docente', async (req, res) => {
     const query_max = 'SELECT MAX(n_bloque) num FROM bloque';
     const bpd = (await exQuery(query_max))[0].num;
 
-    // Consulta para obtener horario de la Sala
-    const queryAsign = `SELECT d.usado, bl.n_bloque, bl.num_dia FROM disponible d JOIN bloque bl ON (d.docente_rut = ${params.rutDocente} and d.idBloque = bl.idBloque)`;
+    // Consulta para obtener horario de Disponibilidad del Profesor
+    const queryAsign = `SELECT d.usado, bl.n_bloque, bl.num_dia, a.ramo cod_ramo, a.grupo, r.nombre ramo, s.nombre sala FROM disponible d JOIN bloque bl ON (d.docente_rut = ${params.rutDocente} and d.idBloque = bl.idBloque)
+    LEFT JOIN asignacion a ON (d.idBloque = a.bloque and d.docente_rut = a.docente_rut) LEFT JOIN ramo r ON (a.ramo = r.codigo) LEFT JOIN sala s ON (s.idSala = a.sala)`;
     const res1 = await exQuery(queryAsign);
 
     // Crear lista de asignaciones
     const asignaciones = Array.from(Array(bpd), _ => Array(5).fill(null));
     res1.forEach(e => {
-      const obj = JSON.parse(JSON.stringify(e));
-      asignaciones[obj.n_bloque - 1][obj.num_dia - 1] = {
-        valido: true,
-        ...obj,
+      let obj_dispo = JSON.parse(JSON.stringify(e));
+      if (!obj_dispo.usado) {
+        obj_dispo = deleteNulls(obj_dispo);
+      }
+      asignaciones[obj_dispo.n_bloque - 1][obj_dispo.num_dia - 1] = {
+        ...obj_dispo,
       };
     });
-    const results = { bpd, asignaciones };
+    const results = { asignaciones };
     res.json(results);
   } catch (error) {
     console.error('Error /disponibilidad-docente API URL', error);
@@ -299,7 +328,7 @@ api.post('/asignacion', async (req, res) => {
   const lista_idBloques = (await exQuery(sql1)).map(bloque => bloque.idBloque);
 
   // Construir lista de asignaciones
-  const grupo = 'B'; //Grupo de Ejemplo
+  const grupo = 'A'; //Grupo de Ejemplo
   const query_asignaciones = lista_idBloques.map(bloque => [
     data.codigoRamo,
     data.salaRef.sala,
@@ -317,19 +346,72 @@ api.post('/asignacion', async (req, res) => {
     res.json({ res: 'ASIGNACIÓN REALIZADA CON EXITO' });
   });
 });
-app.listen(PORT, error => {
-  const address = os.networkInterfaces()['Wi-Fi'][1].address;
-  if (error) {
-    console.log(error);
+
+api.post('/actualizar-disponibilidad', async (req, res) => {
+  const { bloquesAgreg, bloquesElim, rutDocente } = req.body;
+
+  // Agregar disponibilidad
+  if (bloquesAgreg.length > 0) {
+    // Obtener ID de bloques para INSERT
+    const listBloquesAdd = bloquesAgreg.map(
+      bloque => `(${bloque.dia}, ${bloque.bloque})`
+    );
+    const sql1 = `select idBloque from bloque where (num_dia, n_bloque) in (${listBloquesAdd.join(
+      ','
+    )})`;
+    const listIdBloquesAdd = (await exQuery(sql1)).map(
+      bloque => bloque.idBloque
+    );
+    // ------------------
+    const datosAdd = listIdBloquesAdd.map(idBloque => [
+      rutDocente,
+      idBloque,
+      0,
+    ]);
+    const addSql = `INSERT INTO disponible(docente_rut, idBloque, usado) VALUES ?`;
+    const res1 = await ADDQuery(addSql, [datosAdd]);
+    console.log('Filas insertadas:', res1.affectedRows);
   }
-  console.log('Servidor iniciado en http://localhost:' + PORT);
-  console.log(`Direcccion para comunicación en LAN: http://${address}:${PORT}`);
+  // Eliminar disponibilidad
+  if (bloquesElim.length > 0) {
+    // ------ Obtener ID de bloques
+    const listBloquesDelete = bloquesElim.map(
+      bloque => `(${bloque.dia}, ${bloque.bloque})`
+    );
+    const sql2 = `select idBloque from bloque where (num_dia, n_bloque) in (${listBloquesDelete.join(
+      ','
+    )})`;
+    const listIdBloquesDelete = (await exQuery(sql2)).map(
+      bloque => bloque.idBloque
+    );
+    // ------------------
+    const datosDelete = listIdBloquesDelete.map(
+      idBloque => `(${rutDocente}, ${idBloque})`
+    );
+    const deleteSql = `DELETE FROM disponible WHERE (docente_rut, idBloque) IN (${datosDelete.join(',')})`;
+    
+    const res2 = await exQuery(deleteSql);
+    console.log('Filas eliminadas:', res2.affectedRows);
+  }
+
+  res.status(200).send({ success: true });
 });
 
-// const address_zero =
-//   os.networkInterfaces()["ZeroTier One [8286ac0e47e743dd]"][1].address;
-// app.listen(PORT, address_zero, () => {
+// app.listen(PORT, error => {
+//   const address = os.networkInterfaces()['Wi-Fi'][1].address;
+//   if (error) {
+//     console.log(error);
+//   }
+//   console.log('Servidor iniciado en http://localhost:' + PORT + '/api');
 //   console.log(
-//     `Direcccion para comunicación en ZERO: http://${address_zero}:${PORT}`
+//     `Direcccion para comunicación en LAN: http://${address}:${PORT}/api`
 //   );
 // });
+
+const address_zero =
+  os.networkInterfaces()['ZeroTier One [8286ac0e47e743dd]'][1].address;
+app.listen(PORT, address_zero, () => {
+  console.log(
+    `Direcccion para comunicación en ZERO: http://${address_zero}:${PORT}/api`
+  );
+});
